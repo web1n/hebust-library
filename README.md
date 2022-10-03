@@ -6,7 +6,7 @@
 
 请先确定已经安装 docker 及 docker-compose 工具
 
-1. git clone
+1. 下载 docker-compose.yml.example
 2. 将 docker-compose.yml.example 改名为 docker-compose.yml
 3. 修改 docker-compose.yml 文件
 4. docker-compose up -d

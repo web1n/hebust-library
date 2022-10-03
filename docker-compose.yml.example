@@ -2,7 +2,7 @@ version: '2'
 
 services:
   library:
-    build: .
+    image: ghcr.io/web1n/hebust-library:latest
     user: root
     restart: always
     environment:
