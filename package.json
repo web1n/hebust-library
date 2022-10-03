@@ -1,0 +1,28 @@
+{
+  "name": "hebust_library",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "bin <9633157+web1n@users.noreply.github.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./dist/app.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.7.23",
+    "@types/node-schedule": "^2.1.0",
+    "@types/qs": "^6.9.7",
+    "@types/tough-cookie": "^4.0.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "axios": "^0.27.2",
+    "axios-cookiejar-support": "^4.0.3",
+    "cheerio": "^1.0.0-rc.12",
+    "console-stamp": "^3.0.6",
+    "node-schedule": "^2.1.0",
+    "qs": "^6.11.0",
+    "tough-cookie": "^4.1.2"
+  }
+}
