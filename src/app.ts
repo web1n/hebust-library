@@ -27,11 +27,11 @@ async function bespeakSeat(): Promise<void> {
 	);
 
 	console.info('正在登录');
-	library.login().then(() => {
+	library.login().then(async () => {
 		console.info('已登陆, 即将查询座位预约情况');
 
-		return library.hasBespeakedSeat();
-	}).then(async (seat: false | SeatInfo) => {
+		return await library.getBespeakSeatInfo() || await library.getCurrentSeatInfo();
+	}).then(async seat => {
 		if (seat) {
 			console.info('已有座位, 不再自动占座', seat);
 			return false;
@@ -73,6 +73,49 @@ async function bespeakSeat(): Promise<void> {
 	});
 }
 
+async function updateSeat() {
+	const library = new Library(
+		process.env.USERNAME!,
+		process.env.PASSWORD!,
+		parseInt(`${process.env.TIMEOUT ?? 20}`) * 1000
+	);
+
+	console.info('正在登录');
+	library.login().then(() => {
+		console.info('已登陆, 即将更新座位预约情况');
+
+		return library.getBespeakSeatInfo();
+	}).then(async (seat: null | SeatInfo) => {
+		if (!seat) {
+			console.info('未占座或已签到, 不需要继续操作');
+			return false;
+		}
+
+		let bespeakTime = await library.getBespeakTime();
+		if (bespeakTime === null) {
+			throw new Error('未获取到预约时间');
+		}
+
+		await library.cancelBespeak();
+		return Promise.any(Array(3).fill(0).map(() => {
+			return library.bespeakSeat(seat.seatNo, bespeakTime!);
+		})).catch((e) => {
+			if (e instanceof AggregateError) {
+				throw e.errors[0];
+			}
+
+			throw e;
+		});
+	}).then(seat => {
+		console.info('已重新预约座位', seat);
+	}).catch((e) => {
+		console.error(e);
+
+		push(e);
+	}).finally(() => {
+		console.info('本次座位更新结束');
+	});
+}
 
 for (const param of ['USERNAME', 'PASSWORD', 'DINGTALK_WEBHOOK_URL', 'DINGTALK_WEBHOOK_SECRET']) {
 	if (!(process.env[param])) {
@@ -83,8 +126,33 @@ for (const param of ['USERNAME', 'PASSWORD', 'DINGTALK_WEBHOOK_URL', 'DINGTALK_W
 	console.debug(`${param}: ${process.env[param]}`);
 }
 
-// 每天晚上十点半
-schedule.scheduleJob("0 30 22 ? * *", async () => await reserveSeat());
-schedule.scheduleJob("0 31 22 ? * *", async () => await reserveSeat());
 
-reserveSeat().then();
+// 自动预约
+for (const rule in [
+	{hour: 22, minute: [29, 31]}, // 每晚十点半
+	{dayOfWeek: 4, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
+]) {
+	schedule.scheduleJob(rule, async () => await bespeakSeat());
+}
+bespeakSeat().then();
+
+
+// 自动更新座位
+if (process.env.AUTO_UPDATE === 'true') {
+	console.info('已启动座位自动更新');
+
+	for (const rule in [
+		{
+			dayOfWeek: [1, 2, 3, 5, 6, 7],
+			hour: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+			minute: [2, 42]
+		},
+		{
+			dayOfWeek: 4,
+			hour: [7, 8, 9, 10, 11, 17, 18, 19, 20, 21],
+			minute: [2, 42]
+		},
+	]) {
+		schedule.scheduleJob(rule, async () => await updateSeat());
+	}
+}

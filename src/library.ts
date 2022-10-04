@@ -8,9 +8,12 @@ import assert from "assert";
 export type SeatInfo = {
 	roomNo: string,
 	seatNo: string,
+
 	roomName: string,
 	seatName: string,
-	leftTime: number
+
+	leftTime?: number,
+	useTime?: number
 };
 
 export class Library {
@@ -74,43 +77,62 @@ export class Library {
 	}
 
 	/**
-	 * 判断是否预约过座位
+	 * 取消占座
 	 */
-	async hasBespeakedSeat(): Promise<false | SeatInfo> {
-		return this.ajaxMethod('Menu2', 'HaveBespeaked').then((result: string) => {
-			const bespeaked = result.slice(1, -4) === '1';
-			if (bespeaked) {
-				return this.getSeatInfo().then((seat: null | SeatInfo) => {
-					if (seat !== null) {
-						return seat!;
-					}
-
-					throw new Error('已预约, 但是获取占座结果失败');
-				});
+	async cancelBespeak(): Promise<void> {
+		return this.client.get('http://tsgic.hebust.edu.cn/Seat/BespeakCancel.aspx').then((result: AxiosResponse<string>) => {
+			return load(result.data)('script').text();
+		}).then((result: string) => {
+			if (result.includes('取消预约成功')) {
+				return;
 			}
 
-			return false;
+			throw new Error(`取消预约失败: ${result}`);
 		});
 	}
 
 	/**
 	 * 获取预约的座位信息
 	 */
-	async getSeatInfo(): Promise<null | SeatInfo> {
-		return this.client.get('http://tsgic.hebust.edu.cn/seat/MyCurBespeakSeat.aspx').then((result: AxiosResponse<string>) => {
+	async getBespeakSeatInfo(): Promise<null | SeatInfo> {
+		return this.getSeatInfo(true);
+	}
+
+	async getCurrentSeatInfo(): Promise<null | SeatInfo> {
+		return this.getSeatInfo();
+	}
+
+	/**
+	 * 获取预约的座位信息
+	 */
+	private async getSeatInfo(checkBespeakSeat: boolean = false): Promise<null | SeatInfo> {
+		return this.client({
+			url: `http://tsgic.hebust.edu.cn/seat/${checkBespeakSeat ? 'MyCurBespeakSeat' : 'MyCurrentSeat'}.aspx`
+		}).then((result: AxiosResponse<string>) => {
 			return load(result.data);
-		}).then((currentSeat) => {
-			if (!currentSeat('input#hidseatno').val()) {
-				return null;
+		}).then(result => {
+			for (const id of ['hidroomno', 'hidseatno', 'lblRoomName', 'lblSeatNo']) {
+				if (!result(`input#${id}`).val()) {
+					return null;
+				}
 			}
 
-			return {
-				roomNo: currentSeat('input#hidroomno').val() as string,
-				seatNo: currentSeat('input#hidseatno').val() as string,
-				roomName: currentSeat('input#lblRoomName').val() as string,
-				seatName: currentSeat('input#lblSeatNo').val() as string,
-				leftTime: parseInt(currentSeat('input#hidlefttime').val() as string)
+			const seat: SeatInfo = {
+				roomNo: result('input#hidroomno').val() as string,
+				seatNo: result('input#hidseatno').val() as string,
+
+				roomName: result('input#lblRoomName').val() as string,
+				seatName: result('input#lblSeatNo').val() as string,
 			};
+
+			if (result('input#hidusetime').val()) {
+				seat.useTime = parseInt(result('input#hidusetime').val() as string);
+			}
+			if (result('input#hidlefttime').val()) {
+				seat.leftTime = parseInt(result('input#hidlefttime').val() as string);
+			}
+
+			return seat;
 		});
 	}
 
@@ -200,7 +222,7 @@ export class Library {
 
 			throw new Error(`预约失败: ${result}`);
 		}).then(() => {
-			return this.getSeatInfo();
+			return this.getBespeakSeatInfo();
 		}).then((seat: null | SeatInfo) => {
 			if (!seat) {
 				throw new Error('预约成功, 但无法获取到座位信息!');
