@@ -79,7 +79,7 @@ export class Library {
 			headers: {
 				'X-AjaxPro-Method': method,
 				'Origin': 'http://tsgic.hebust.edu.cn',
-				'Referer': 'http://tsgic.hebust.edu.cn/seat/Menu2.aspx'
+				'Referer': `http://tsgic.hebust.edu.cn/seat/${type.split('.').join('/')}.aspx`
 			}
 		}).then((result: AxiosResponse<string>) => {
 			return result.data;
