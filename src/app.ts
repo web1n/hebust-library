@@ -1,49 +1,25 @@
-import axios from 'axios';
 import schedule from 'node-schedule';
 import consoleStamp from 'console-stamp';
-import crypto from 'crypto';
 import {Library, SeatInfo} from './library';
+import {dingtalkPush, sleep} from './utils';
 
 
 consoleStamp(console, {format: ':date(yyyy/mm/dd HH:MM:ss.l) :label'});
 
-
-async function dingtalk_push(message: string | Error): Promise<void> {
-	if (typeof (message) === 'string') {
-		console.info(message);
-	}
-
-	const hmac = crypto.createHmac('sha256', process.env.DINGTALK_WEBHOOK_SECRET as string);
-
-	const timestamp = Date.now();
-	const sign = hmac.update(`${timestamp}\n${process.env.DINGTALK_WEBHOOK_SECRET}`).digest('base64');
-
-	axios({
-		url: process.env.DINGTALK_WEBHOOK_URL,
-		method: 'post',
-		params: {
-			'timestamp': timestamp,
-			'sign': sign
-		},
-		data: {
-			'msgtype': 'text',
-			'text': {
-				'content': message.toString()
-			}
-		}
-	}).then((result: { data: { errcode: number, errmsg: string } }) => {
-		console.debug('dingtalk push result', result.data);
-
-		if (result.data.errcode !== 0) {
-			throw Error(result.data.errmsg);
-		}
-	}).catch(e => {
-		console.error(e);
-	});
+/**
+ * 钉钉推送
+ * @param message
+ */
+async function push(message: string | Error): Promise<void> {
+	await dingtalkPush(
+		process.env.DINGTALK_WEBHOOK_URL as string,
+		process.env.DINGTALK_WEBHOOK_SECRET as string,
+		message
+	);
 }
 
 
-async function reserveSeat(): Promise<void> {
+async function bespeakSeat(): Promise<void> {
 	const library = new Library(
 		process.env.USERNAME!,
 		process.env.PASSWORD!,
@@ -54,10 +30,10 @@ async function reserveSeat(): Promise<void> {
 	library.login().then(() => {
 		console.info('已登陆, 即将查询座位预约情况');
 
-		return library.getSeatInfo();
+		return library.hasBespeakedSeat();
 	}).then(async (seat: false | SeatInfo) => {
 		if (seat) {
-			console.info('已有座位, 不再自动占座');
+			console.info('已有座位, 不再自动占座', seat);
 			return false;
 		}
 
@@ -70,10 +46,7 @@ async function reserveSeat(): Promise<void> {
 				break;
 			}
 
-			await new Promise<void>((resolve) => {
-				setTimeout(() => resolve(), 1000);
-			});
-
+			await sleep(1000);
 			bespeakTime = await library.getBespeakTime();
 		}
 		if (!bespeakTime) {
@@ -81,7 +54,7 @@ async function reserveSeat(): Promise<void> {
 		}
 
 		return Promise.any(Array(10).fill(0).map(() => {
-			return library.oneKeyReservePreferredSeat(bespeakTime!);
+			return library.oneKeyBespeak(bespeakTime!);
 		})).catch((e) => {
 			if (e instanceof AggregateError) {
 				throw e.errors[0];
@@ -90,11 +63,11 @@ async function reserveSeat(): Promise<void> {
 			throw e;
 		});
 	}).then((seat: false | SeatInfo) => {
-		return seat ? dingtalk_push(`已占座: ${seat.room} ${seat.seatNo}`) : null;
+		return seat ? push(`已占座: ${seat.roomName} ${seat.seatName}`) : null;
 	}).catch((e) => {
 		console.error(e);
 
-		dingtalk_push(e);
+		push(e);
 	}).finally(() => {
 		console.info('本次占座结束');
 	});

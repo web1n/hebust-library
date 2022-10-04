@@ -6,8 +6,10 @@ import {load} from 'cheerio';
 import assert from "assert";
 
 export type SeatInfo = {
-	room: string,
+	roomNo: string,
 	seatNo: string,
+	roomName: string,
+	seatName: string,
 	leftTime: number
 };
 
@@ -71,72 +73,119 @@ export class Library {
 		});
 	}
 
-	private async ajaxMethod(type: string, method: string, data?: any): Promise<string> {
+	/**
+	 * 判断是否预约过座位
+	 */
+	async hasBespeakedSeat(): Promise<false | SeatInfo> {
+		return this.ajaxMethod('Menu2', 'HaveBespeaked').then((result: string) => {
+			const bespeaked = result.slice(1, -4) === '1';
+			if (bespeaked) {
+				return this.getSeatInfo().then((seat: null | SeatInfo) => {
+					if (seat !== null) {
+						return seat!;
+					}
+
+					throw new Error('已预约, 但是获取占座结果失败');
+				});
+			}
+
+			return false;
+		});
+	}
+
+	/**
+	 * 获取预约的座位信息
+	 */
+	async getSeatInfo(): Promise<null | SeatInfo> {
+		return this.client.get('http://tsgic.hebust.edu.cn/seat/MyCurBespeakSeat.aspx').then((result: AxiosResponse<string>) => {
+			return load(result.data);
+		}).then((currentSeat) => {
+			if (!currentSeat('input#hidseatno').val()) {
+				return null;
+			}
+
+			return {
+				roomNo: currentSeat('input#hidroomno').val() as string,
+				seatNo: currentSeat('input#hidseatno').val() as string,
+				roomName: currentSeat('input#lblRoomName').val() as string,
+				seatName: currentSeat('input#lblSeatNo').val() as string,
+				leftTime: parseInt(currentSeat('input#hidlefttime').val() as string)
+			};
+		});
+	}
+
+	/**
+	 * 调用服务器 ajaxpro 方法
+	 * @param  path 执行路径
+	 * @param method 执行方法
+	 * @param data
+	 * @private
+	 */
+	private async ajaxMethod(path: string, method: string, data?: any): Promise<string> {
 		return this.client({
-			url: `http://tsgic.hebust.edu.cn/ajaxpro/WechatTSG.Web.Seat.${type},WechatTSG.Web.ashx`,
+			url: `http://tsgic.hebust.edu.cn/ajaxpro/WechatTSG.Web.Seat.${path},WechatTSG.Web.ashx`,
 			method: 'post',
 			data: data,
 			headers: {
 				'X-AjaxPro-Method': method,
 				'Origin': 'http://tsgic.hebust.edu.cn',
-				'Referer': `http://tsgic.hebust.edu.cn/seat/${type.split('.').join('/')}.aspx`
+				'Referer': `http://tsgic.hebust.edu.cn/seat/${path.split('.').join('/')}.aspx`
 			}
 		}).then((result: AxiosResponse<string>) => {
 			return result.data;
 		});
 	}
 
-	async hasReservedSeat(): Promise<false | SeatInfo> {
-		return this.ajaxMethod('Menu2', 'HaveBespeaked').then((result: string) => {
-			console.debug(result);
-
-			return result.startsWith('"1"') ? this.getSeatInfo() : false;
-		});
-	}
-
-	async getSeatInfo(): Promise<false | SeatInfo> {
-		return this.client.get('http://tsgic.hebust.edu.cn/seat/MyCurBespeakSeat.aspx').then((result: AxiosResponse<string>) => {
-			return load(result.data);
-		}).then((currentSeat) => {
-			if (!currentSeat('input#lblRoomName').val()) {
-				return false;
-			}
-
-			return {
-				room: currentSeat('input#lblRoomName').val() as string,
-				seatNo: currentSeat('input#lblSeatNo').val() as string,
-				leftTime: parseInt(currentSeat('input#hidlefttime').val() as string)
-			};
-		});
-	}
-
-	async getBespeakTime(): Promise<string> {
+	/**
+	 * 获取当前占座时间
+	 */
+	async getBespeakTime(): Promise<null | string> {
 		// "2022/10/3 8:00:00";/*
 		return this.ajaxMethod('BespeakSeat.BespeakChoice', 'GetBespeakTime').then((result: string) => {
-			return result.slice(1, -4);
+			const time = result.slice(1, -4);
+			if (time.length) {
+				return time;
+			}
+
+			return null;
 		});
 	}
 
-	async getPreferredSeatRemain(): Promise<false | string> {
+	/**
+	 * 获取剩余喜好座位
+	 */
+	async getPreferredSeatRemain(): Promise<null | string> {
+		// "101013159";/*
 		return this.ajaxMethod('BespeakSeat.BespeakChoice', 'SeatCanBeUsed').then((result: string) => {
-			// "101013159";/*
-			return result.slice(1, -4);
-		}).then((seat: string) => {
-			return seat.length ? seat : false;
+			const seat = result.slice(1, -4);
+			if (seat.length) {
+				return seat;
+			}
+
+			return null;
 		});
 	}
 
-	async oneKeyReservePreferredSeat(bespeakTime: string): Promise<SeatInfo> {
-		return this.getPreferredSeatRemain().then((seat: false | string) => {
+	/**
+	 * 一键预约喜好座位
+	 * @param bespeakTime 预约时间, 如: 2022/10/3 8:00:00
+	 */
+	async oneKeyBespeak(bespeakTime: string): Promise<SeatInfo> {
+		return this.getPreferredSeatRemain().then((seat: null | string) => {
 			if (!seat) {
 				throw new Error('喜好座位均被约！！！');
 			}
 
-			return this.oneKeyReserve(seat, bespeakTime);
+			return this.bespeakSeat(seat, bespeakTime);
 		});
 	}
 
-	async oneKeyReserve(seatNo: string, bespeakTime: string): Promise<SeatInfo> {
+	/**
+	 * 预约座位
+	 * @param seatNo 座位号, 如: 101013159
+	 * @param bespeakTime 预约时间, 如: 2022/10/3 8:00:00
+	 */
+	async bespeakSeat(seatNo: string, bespeakTime: string): Promise<SeatInfo> {
 		return this.ajaxMethod('BespeakSeat.BespeakChoice', 'OnekeyBespeak', {
 			'strSeatNo': seatNo,
 			'BespeakTime': bespeakTime
@@ -152,7 +201,7 @@ export class Library {
 			throw new Error(`预约失败: ${result}`);
 		}).then(() => {
 			return this.getSeatInfo();
-		}).then((seat: false | SeatInfo) => {
+		}).then((seat: null | SeatInfo) => {
 			if (!seat) {
 				throw new Error('预约成功, 但无法获取到座位信息!');
 			}
@@ -160,4 +209,5 @@ export class Library {
 			return seat;
 		});
 	}
+
 }
