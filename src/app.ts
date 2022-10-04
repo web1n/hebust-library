@@ -61,11 +61,28 @@ async function reserveSeat(): Promise<void> {
 			return false;
 		}
 
-		return library.getBespeakTime().then((bespeakTime) => {
-			return Promise.any(Array(5).fill(0).map(() => {
-				return library.oneKeyReservePreferredSeat(bespeakTime);
-			}));
-		}).catch((e) => {
+		let bespeakTime = await library.getBespeakTime();
+		if (!bespeakTime) {
+			console.info('等待开始预约');
+		}
+		for (const _ in Array(60).fill(0)) {
+			if (bespeakTime) {
+				break;
+			}
+
+			await new Promise<void>((resolve) => {
+				setTimeout(() => resolve(), 1000);
+			});
+
+			bespeakTime = await library.getBespeakTime();
+		}
+		if (!bespeakTime) {
+			throw new Error('当前时间不可约！！！');
+		}
+
+		return Promise.any(Array(10).fill(0).map(() => {
+			return library.oneKeyReservePreferredSeat(bespeakTime!);
+		})).catch((e) => {
 			if (e instanceof AggregateError) {
 				throw e.errors[0];
 			}
