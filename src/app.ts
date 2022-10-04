@@ -44,7 +44,11 @@ async function dingtalk_push(message: string | Error): Promise<void> {
 
 
 async function reserveSeat(): Promise<void> {
-	const library = new Library();
+	const library = new Library(
+		process.env.USERNAME!,
+		process.env.PASSWORD!,
+		parseInt(`${process.env.TIMEOUT ?? 20}`) * 1000
+	);
 
 	console.info('正在登录');
 	library.login().then(() => {

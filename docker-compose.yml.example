@@ -6,6 +6,8 @@ services:
     user: root
     restart: always
     environment:
+      - TIMEOUT=20
+
       - USERNAME=190000000 # 学号
       - PASSWORD=190000000 # 密码
 

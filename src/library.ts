@@ -14,13 +14,21 @@ export type SeatInfo = {
 export class Library {
 	private client: AxiosInstance;
 
-	constructor() {
+	private readonly username: string;
+	private readonly password: string;
+	private readonly timeout: number;
+
+	constructor(username: string, password: string, timeout: number) {
+		this.username = username;
+		this.password = password;
+		this.timeout = timeout;
+
 		this.client = wrapper(axios.create({
 			jar: new CookieJar(),
 			headers: {
 				'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.27(0x18001b14) NetType/WIFI Language/zh_CN'
 			},
-			timeout: 8000,
+			timeout: this.timeout,
 			maxRedirects: 1
 		}));
 	}
@@ -34,8 +42,8 @@ export class Library {
 					'schoolid': 2149,
 					'backurl': '',
 					'userType': 0,
-					'username': process.env.USERNAME,
-					'password': process.env.PASSWORD
+					'username': this.username,
+					'password': this.password
 				}),
 				headers: {
 					'Origin': 'https://mc.m.5read.com',
@@ -63,7 +71,7 @@ export class Library {
 		});
 	}
 
-	private async ajaxMethod(type: string, method: string, data?: any, timeout: number = 5000): Promise<string> {
+	private async ajaxMethod(type: string, method: string, data?: any): Promise<string> {
 		return this.client({
 			url: `http://tsgic.hebust.edu.cn/ajaxpro/WechatTSG.Web.Seat.${type},WechatTSG.Web.ashx`,
 			method: 'post',
@@ -72,8 +80,7 @@ export class Library {
 				'X-AjaxPro-Method': method,
 				'Origin': 'http://tsgic.hebust.edu.cn',
 				'Referer': 'http://tsgic.hebust.edu.cn/seat/Menu2.aspx'
-			},
-			timeout: timeout
+			}
 		}).then((result: AxiosResponse<string>) => {
 			return result.data;
 		});
