@@ -90,12 +90,12 @@ async function updateSeat() {
 			return false;
 		}
 
+		await library.cancelBespeak();
+
 		let bespeakTime = await library.getBespeakTime();
 		if (bespeakTime === null) {
 			throw new Error('未获取到预约时间');
 		}
-
-		await library.cancelBespeak();
 		return Promise.any(Array(3).fill(0).map(() => {
 			return library.bespeakSeat(seat.seatNo, bespeakTime!);
 		})).catch((e) => {
