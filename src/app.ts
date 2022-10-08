@@ -131,7 +131,7 @@ for (const param of ['USERNAME', 'PASSWORD', 'DINGTALK_WEBHOOK_URL', 'DINGTALK_W
 
 
 // 自动预约
-for (const rule in [
+for (const rule of [
 	{hour: 22, minute: [29, 31]}, // 每晚十点半
 	{dayOfWeek: 5, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
 ]) {
