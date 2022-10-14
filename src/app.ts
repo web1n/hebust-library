@@ -27,10 +27,10 @@ async function bespeakSeat(): Promise<void> {
 	);
 
 	console.info('正在登录');
-	library.login().then(async () => {
+	library.login().then(() => {
 		console.info('已登陆, 即将查询座位预约情况');
 
-		return await library.getBespeakSeatInfo() || await library.getCurrentSeatInfo();
+		return library.getBespeakSeatInfo();
 	}).then(async seat => {
 		if (seat) {
 			console.info('已有座位, 不再自动占座', seat);
