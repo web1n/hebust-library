@@ -119,7 +119,7 @@ library.login().then(() => {
 }).then(() => {
 	for (const rule of [
 		{hour: 22, minute: [29, 31]}, // 每晚十点半
-		{dayOfWeek: 5, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
+		{dayOfWeek: 4, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
 	]) {
 		schedule.scheduleJob(rule, bespeakSeat);
 	}
