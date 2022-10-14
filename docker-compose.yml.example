@@ -4,7 +4,7 @@ services:
   library:
     image: ghcr.io/web1n/hebust-library:latest
     user: root
-    restart: always
+    restart: 'no'
     environment:
       - TIMEOUT=20
 

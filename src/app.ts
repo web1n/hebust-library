@@ -20,18 +20,9 @@ async function push(message: string | Error): Promise<void> {
 
 
 async function bespeakSeat(): Promise<void> {
-	const library = new Library(
-		process.env.USERNAME!,
-		process.env.PASSWORD!,
-		parseInt(`${process.env.TIMEOUT ?? 20}`) * 1000
-	);
+	console.info('即将查询座位预约情况');
 
-	console.info('正在登录');
-	library.login().then(() => {
-		console.info('已登陆, 即将查询座位预约情况');
-
-		return library.getBespeakSeatInfo();
-	}).then(async seat => {
+	library.getBespeakSeatInfo().then(async seat => {
 		if (seat) {
 			console.info('已有座位, 不再自动占座', seat);
 			return false;
@@ -74,18 +65,9 @@ async function bespeakSeat(): Promise<void> {
 }
 
 async function updateSeat() {
-	const library = new Library(
-		process.env.USERNAME!,
-		process.env.PASSWORD!,
-		parseInt(`${process.env.TIMEOUT ?? 20}`) * 1000
-	);
+	console.info('即将更新座位预约情况');
 
-	console.info('正在登录');
-	library.login().then(() => {
-		console.info('已登陆, 即将更新座位预约情况');
-
-		return library.getBespeakSeatInfo();
-	}).then(async (seat: null | SeatInfo) => {
+	library.getBespeakSeatInfo().then(async (seat: null | SeatInfo) => {
 		if (!seat) {
 			return false;
 		}
@@ -129,23 +111,30 @@ for (const param of ['USERNAME', 'PASSWORD', 'DINGTALK_WEBHOOK_URL', 'DINGTALK_W
 	console.debug(`${param}: ${process.env[param]}`);
 }
 
+const library = new Library(process.env.USERNAME!, process.env.PASSWORD!, parseInt(`${process.env.TIMEOUT ?? 20}`) * 1000);
 
-// 自动预约
-for (const rule of [
-	{hour: 22, minute: [29, 31]}, // 每晚十点半
-	{dayOfWeek: 5, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
-]) {
-	schedule.scheduleJob(rule, async () => await bespeakSeat());
-}
-bespeakSeat().then();
+console.info('正在登录');
+library.login().then(() => {
+	console.info(`已登陆 ${process.env.USERNAME}`);
+}).then(() => {
+	for (const rule of [
+		{hour: 22, minute: [29, 31]}, // 每晚十点半
+		{dayOfWeek: 5, hour: 12, minute: [29, 31]} // 周四十二点半约晚上
+	]) {
+		schedule.scheduleJob(rule, bespeakSeat);
+	}
 
+	// 自动更新座位
+	if (process.env.AUTO_UPDATE === 'true') {
+		console.info('已启动座位自动更新');
 
-// 自动更新座位
-if (process.env.AUTO_UPDATE === 'true') {
-	console.info('已启动座位自动更新');
+		schedule.scheduleJob({
+			hour: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+			minute: [2, 42]
+		}, updateSeat);
+	}
 
-	schedule.scheduleJob({
-		hour: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
-		minute: [2, 42]
-	}, async () => await updateSeat());
-}
+	return bespeakSeat();
+}).catch(e => {
+	console.error(e);
+});
