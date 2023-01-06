@@ -10,13 +10,12 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Set repo name lowercase
-        id: repo
-        uses: ASzc/change-string-case-action@v2
-        with:
-          string: ${{ github.repository }}
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Set repo name lowercase
+        run: echo "repository_lower=${repository,,}" >>${GITHUB_ENV}
+        env:
+          repository: ${{ github.repository }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -34,4 +33,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ steps.repo.outputs.lowercase }}:latest
+            ghcr.io/${{ env.repository_lower }}:latest
+          labels: |
+            Author=${{ github.repository_owner }}
