@@ -1,20 +1,13 @@
-FROM node:current-alpine3.15
+FROM node:lts-alpine3.15 AS build
 
-WORKDIR /usr/src/app
+WORKDIR /opt/app
 
-# timezone
-ENV TZ Asia/Shanghai
-
-RUN apk add tzdata && cp /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone \
-    && apk del tzdata
-
-COPY src ./src/
-COPY tsconfig.json ./
-COPY package*.json ./
-
-RUN npm install  \
-    && npm run build
+COPY . .
+RUN yarn && yarn build-pkg
 
 
-CMD ["npm", "run", "start"]
+FROM cgr.dev/chainguard/static:latest
+
+COPY --from=build /opt/app/dist/app /
+
+CMD ["/app"]

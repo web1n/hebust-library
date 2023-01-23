@@ -6,6 +6,7 @@ services:
     user: root
     restart: 'no'
     environment:
+      - TZ=Asia/Shanghai
       - TIMEOUT=20
 
       - USERNAME=190000000 # 学号
